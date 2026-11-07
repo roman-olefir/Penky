@@ -286,7 +286,7 @@ namespace CardGame.Tests
         {
             var (game, human, bots) = HumanWithBots(BotLevel.Hard);
             Assert.Null(game.StartGame(human.Id));
-            human.Hand = new List<Card> { C(Clubs, Eight) };
+            human.Hand = new List<Card> { C(Spades, Six), C(Clubs, Eight) };
             bots[0].Hand = new List<Card> { C(Hearts, Seven) };
             game.State.Deck = new List<Card> { C(Spades, Jack) };
             game.State.CurrentPlayerIndex = 0;
@@ -295,6 +295,22 @@ namespace CardGame.Tests
 
             Assert.Contains(C(Clubs, Eight), bots[0].Memory!.KnownHand(bots[0].Id));
             Assert.DoesNotContain(C(Clubs, Eight), bots[0].Memory!.KnownHand(human.Id));
+        }
+
+        [Fact]
+        public void BotNeverMovesItsFirstCard()
+        {
+            var (game, human, bots) = HumanWithBots(BotLevel.Hard);
+            Assert.Null(game.StartGame(human.Id));
+            human.Hand = new List<Card> { C(Clubs, Seven) };
+            bots[0].Hand = new List<Card> { C(Hearts, Eight) };
+            game.State.Deck = new List<Card> { C(Spades, Jack), C(Spades, King) };
+            game.State.CurrentPlayerIndex = 1;
+
+            Assert.True(game.PlayBotMove());
+
+            Assert.Equal(GameActionKind.Draw, game.State.LastAction!.Kind);
+            Assert.Equal(0, bots[0].Fouls);
         }
 
         [Fact]

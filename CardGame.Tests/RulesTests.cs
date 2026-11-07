@@ -324,14 +324,14 @@ namespace CardGame.Tests
         public void TopCardMovesOnOpponentAndNextOneCanFollow()
         {
             var (game, p) = Dealing(new[] { C(Clubs, Eight), C(Hearts, Seven), C(Spades, Six) }, C(Spades, Jack));
-            p[0].Hand = new List<Card> { C(Diamonds, Seven), C(Clubs, Eight) };
+            p[0].Hand = new List<Card> { C(Spades, King), C(Diamonds, Seven), C(Clubs, Eight) };
 
             Assert.Null(game.MovingTopCard(p[0].Id, p[1].Id)); // вісімка на сімку
             Assert.Null(game.MovingTopCard(p[0].Id, p[2].Id)); // сімка під нею на шістку
 
             Assert.Equal(C(Clubs, Eight), p[1].Hand[^1]);
             Assert.Equal(C(Diamonds, Seven), p[2].Hand[^1]);
-            Assert.Empty(p[0].Hand);
+            Assert.Equal(new[] { C(Spades, King) }, p[0].Hand);
             Assert.Equal(0, p[0].Fouls);
             Assert.Equal(p[0].Id, CurrentId(game));
             Assert.Equal(GameActionKind.Move, game.State.LastAction!.Kind);
@@ -341,11 +341,12 @@ namespace CardGame.Tests
         public void MovingOnOpponentItDoesNotFitIsFoulAndCardStays()
         {
             var (game, p) = Dealing(new[] { C(Clubs, Eight), C(Hearts, King) }, C(Spades, Jack));
+            p[0].Hand.Insert(0, C(Spades, Six));
 
             Assert.Null(game.MovingTopCard(p[0].Id, p[1].Id));
 
             Assert.Equal(1, p[0].Fouls);
-            Assert.Equal(new[] { C(Clubs, Eight) }, p[0].Hand);
+            Assert.Equal(new[] { C(Spades, Six), C(Clubs, Eight) }, p[0].Hand);
             Assert.Equal(new[] { C(Hearts, King) }, p[1].Hand);
             Assert.Equal(GameActionKind.Foul, game.State.LastAction!.Kind);
             Assert.Equal(p[0].Id, CurrentId(game));
@@ -370,6 +371,7 @@ namespace CardGame.Tests
         public void DrawingWhenTopCardMustBeMovedIsFoulAndNothingIsDrawn()
         {
             var (game, p) = Dealing(new[] { C(Clubs, Eight), C(Hearts, Seven) }, C(Spades, Jack));
+            p[0].Hand.Insert(0, C(Spades, Six));
 
             Assert.Null(game.Drawing(p[0].Id));
 
@@ -389,6 +391,7 @@ namespace CardGame.Tests
         public void TopCardMustGoToFirstFittingOpponentFromTheLeft()
         {
             var (game, p) = Dealing(new[] { C(Clubs, Eight), C(Hearts, King), C(Hearts, Seven), C(Spades, Seven) }, C(Spades, Jack));
+            p[0].Hand.Insert(0, C(Spades, Six));
 
             Assert.Null(game.MovingTopCard(p[0].Id, p[3].Id)); // підходить, але перший зліва — третій гравець
             Assert.Equal(1, p[0].Fouls);
@@ -418,7 +421,7 @@ namespace CardGame.Tests
         {
             var (game, p) = Dealing(new[] { C(Clubs, Seven), C(Hearts, King), C(Hearts, Eight), C(Spades, Seven) }, C(Spades, Jack), C(Clubs, Eight));
             game.State.CurrentPlayerIndex = 2; // для третього зліва сидять четвертий, перший, другий
-            p[2].Hand = new List<Card> { C(Hearts, Eight) };
+            p[2].Hand = new List<Card> { C(Spades, Six), C(Hearts, Eight) };
 
             Assert.Equal(p[3].Id, game.GetRequiredMoveTarget(p[2].Id));
             Assert.Null(game.MovingTopCard(p[2].Id, p[3].Id));
@@ -436,6 +439,7 @@ namespace CardGame.Tests
         public void MovedCardDoesNotAffectTrump()
         {
             var (game, p) = Dealing(new[] { C(Clubs, Eight), C(Hearts, Seven) }, C(Diamonds, King));
+            p[0].Hand.Insert(0, C(Spades, Six));
 
             Assert.Null(game.MovingTopCard(p[0].Id, p[1].Id));
             Assert.Null(game.Drawing(p[0].Id));
@@ -445,19 +449,33 @@ namespace CardGame.Tests
         }
 
         [Fact]
-        public void EmptyPileCanStillDrawAndDrawnCardGoesToSelf()
+        public void FirstCardOfPileCannotBeMovedEvenIfItFits()
         {
             var (game, p) = Dealing(new[] { C(Clubs, Eight), C(Hearts, Seven) }, C(Spades, Jack), C(Spades, King));
 
+            Assert.Null(game.GetRequiredMoveTarget(p[0].Id)); // перекладати не треба, хоч вісімка й лягла б на сімку
             Assert.Null(game.MovingTopCard(p[0].Id, p[1].Id));
-            Assert.NotNull(game.MovingTopCard(p[0].Id, p[1].Id)); // перекладати вже нічого, але це не провтик
-            Assert.Equal(0, p[0].Fouls);
+
+            Assert.Equal(1, p[0].Fouls);
+            Assert.Equal(new[] { C(Clubs, Eight) }, p[0].Hand);
+            Assert.Equal("Першу карту купки перекладати не можна", game.State.LastAction!.Reason);
+
+            Assert.Null(game.Drawing(p[0].Id)); // тягнути можна одразу, провтику за це немає
+            Assert.Equal(1, p[0].Fouls);
+            Assert.NotNull(game.State.DrawnCard);
+        }
+
+        [Fact]
+        public void CardPlacedOnOwnPileThatFitsMeansDrawingAgain()
+        {
+            var (game, p) = Dealing(new[] { C(Clubs, Seven), C(Hearts, King) }, C(Spades, Jack), C(Diamonds, Eight));
 
             Assert.Null(game.Drawing(p[0].Id));
-            Assert.Null(game.Dealing(p[0].Id, p[0].Id));
+            Assert.Null(game.Dealing(p[0].Id, p[0].Id)); // вісімка на свою сімку
 
-            Assert.Equal(new[] { C(Spades, King) }, p[0].Hand);
-            Assert.Equal(p[1].Id, CurrentId(game));
+            Assert.Equal(p[0].Id, CurrentId(game));
+            Assert.True(game.State.SubPhase == InProgressPhase.Dealing);
+            Assert.Null(game.Drawing(p[0].Id));
         }
 
         [Fact]

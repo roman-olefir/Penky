@@ -466,7 +466,7 @@ namespace DurakBackend.Services
             lock (_lock)
             {
                 var player = FindPlayer(playerId);
-                return player != null && player.Hand.Count > 0 ? FirstFitting(player, player.Hand[^1])?.Id : null;
+                return player != null && MustMoveTop(player) ? FirstFitting(player, player.Hand[^1])!.Id : null;
             }
         }
 
@@ -493,6 +493,11 @@ namespace DurakBackend.Services
             return null;
         }
 
+        // Перекладати треба верхню карту, якщо вона комусь підходить. Найнижча карта купки — та, яку роздали
+        // на початку гри: її не перекладають ніколи.
+        private bool MustMoveTop(Player player) =>
+            player.Hand.Count > 1 && FirstFitting(player, player.Hand[^1]) != null;
+
         // Куди має лягти витягнута карта: першому зліва направо, кому вона підходить. Якщо нікому — собі.
         private Player GetDealTarget(Player player, Card card) => FirstFitting(player, card) ?? player;
 
@@ -506,7 +511,7 @@ namespace DurakBackend.Services
                 if (State.DrawnCard != null) return "Спершу покладіть витягнуту карту";
 
                 // Верхню карту перекладати обов'язково: хто забув і потягнувся до колоди, той зробив провтик
-                if (player.Hand.Count > 0 && FirstFitting(player, player.Hand[^1]) != null)
+                if (MustMoveTop(player))
                 {
                     var top = player.Hand[^1];
                     player.Fouls++;
@@ -593,6 +598,13 @@ namespace DurakBackend.Services
                 if (target == player) return "Перекласти карту можна лише на суперника";
 
                 var card = player.Hand[^1];
+                if (player.Hand.Count == 1)
+                {
+                    player.Fouls++;
+                    AddLog($"{player.Nick} перекладає свою першу карту {card}: провтик");
+                    NoteFoul(player, card, "Першу карту купки перекладати не можна");
+                    return null;
+                }
                 if (FirstFitting(player, card) != target)
                 {
                     player.Fouls++;

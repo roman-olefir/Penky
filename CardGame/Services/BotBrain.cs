@@ -85,10 +85,11 @@ namespace DurakBackend.Services
         private static List<string> LegalTargets(GameView view) =>
             new() { FirstFitting(view, view.DrawnCard!.ToCard()) ?? view.MyId };
 
-        // Верхню карту перекладати обов'язково, якщо вона комусь підходить
+        // Верхню карту перекладати обов'язково, якщо вона комусь підходить. Першу роздану карту купки — ніколи.
         private static BotMove? RequiredMove(GameView view)
         {
-            var top = view.Players.First(p => p.Id == view.MyId).TopCard?.ToCard();
+            var me = view.Players.First(p => p.Id == view.MyId);
+            var top = me.HandCount > 1 ? me.TopCard?.ToCard() : null;
             var target = top == null ? null : FirstFitting(view, top);
             return target == null ? null : new BotMove(BotMoveKind.Move, target);
         }
