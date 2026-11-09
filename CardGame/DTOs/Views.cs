@@ -56,12 +56,12 @@ namespace DurakBackend.DTOs
         PenaltyView? Penalty,
         CardView? Trump,
         List<CardView> Table,
-        int RoundSize,
-        int RoundPuts,
+        int RoundSize, // скільки карт має лежати на столі, щоб коло закрилось
         List<HandCardView> Hand,
         bool CanDraw,
         bool CanTake,
         string? LoserId,
+        int PlayingMoves,
         ActionView? LastAction,
         List<string> Log);
 

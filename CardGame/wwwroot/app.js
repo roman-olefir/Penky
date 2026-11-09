@@ -652,7 +652,7 @@
         }
 
         const dots = cards.length > 0
-            ? Array.from({ length: s.roundSize }, (_, i) => h('i', { class: i < s.roundPuts ? 'on' : '' }))
+            ? Array.from({ length: s.roundSize }, (_, i) => h('i', { class: i < cards.length ? 'on' : '' }))
             : [];
 
         center.replaceChildren(
@@ -662,7 +662,7 @@
                 h('div', { class: 'pile-label' }, `Відбій: ${s.discardCount}`)),
             h('div', { class: 'pile' },
                 table,
-                h('div', { class: 'round-dots', 'aria-label': `Коло: покладено ${s.roundPuts} із ${s.roundSize}` }, dots),
+                h('div', { class: 'round-dots', 'aria-label': `Коло: на столі ${cards.length} із ${s.roundSize}` }, dots),
                 h('div', { class: 'pile-label' }, isClosing ? 'Коло закрито' : 'Стіл')));
     }
 
@@ -950,6 +950,7 @@
             icon('stump', 'logo'),
             h('h2', null, title),
             h('p', { class: 'muted' }, subtitle),
+            s.playingMoves > 0 && h('p', { class: 'result-moves' }, 'Ходів на другому етапі: ', h('b', null, s.playingMoves)),
             s.loserId && h('ol', { class: 'result-rows' }, ranked.map((p) =>
                 h('li', { class: p.id === s.loserId ? 'loser' : '' },
                     h('span', { class: 'place' }, p.place ?? '–'),

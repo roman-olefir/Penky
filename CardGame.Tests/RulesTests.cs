@@ -546,7 +546,6 @@ namespace CardGame.Tests
         {
             var (game, p) = Playing(trump, new[] { C(Clubs, Ten) }, new[] { C(mySuit, myRank), C(Diamonds, Ten) });
             game.State.Table.Cards.Add(C(topSuit, topRank));
-            game.State.Table.RoundSize = 2;
             game.State.CurrentPlayerIndex = 1;
 
             Assert.Null(game.Putting(p[1].Id, C(mySuit, myRank)));
@@ -638,21 +637,44 @@ namespace CardGame.Tests
         }
 
         [Fact]
-        public void TakenCardStillCountsTowardsClosingTheRound()
+        public void TakenCardNoLongerCountsTowardsClosingTheRound()
         {
             var (game, p) = Playing(Clubs,
                 new[] { C(Hearts, Six), C(Hearts, Ace), C(Spades, Six) },
-                new[] { C(Hearts, Seven), C(Spades, Seven) },
+                new[] { C(Hearts, Seven), C(Hearts, King) },
                 new[] { C(Diamonds, Ten), C(Spades, Eight) });
 
             Assert.Null(game.Putting(p[0].Id, C(Hearts, Six)));
             Assert.Null(game.Putting(p[1].Id, C(Hearts, Seven)));
-            Assert.Null(game.Taking(p[2].Id)); // на столі лишилась одна карта, але покладено вже дві
+            Assert.Null(game.Taking(p[2].Id)); // на столі лишилась одна сімка
             Assert.Null(game.Putting(p[0].Id, C(Hearts, Ace)));
 
+            Assert.Equal(new[] { C(Hearts, Seven), C(Hearts, Ace) }, game.State.Table.Cards); // дві карти, а гравців троє
+            Assert.Equal(0, game.State.DiscardCount);
+            Assert.Equal(p[1].Id, CurrentId(game));
+        }
+
+        [Fact]
+        public void RoundClosesWhenTableHoldsAsManyCardsAsPlayers()
+        {
+            var (game, p) = Playing(Clubs,
+                new[] { C(Hearts, Six), C(Hearts, Ace), C(Spades, Six) },
+                new[] { C(Hearts, Seven), C(Spades, Seven) },
+                new[] { C(Diamonds, Ten), C(Hearts, Nine), C(Spades, Eight) });
+
+            Assert.Null(game.Putting(p[0].Id, C(Hearts, Six)));
+            Assert.Null(game.Putting(p[1].Id, C(Hearts, Seven)));
+            Assert.Null(game.Taking(p[2].Id));                  // [7♥]
+            Assert.Null(game.Putting(p[0].Id, C(Hearts, Ace))); // [7♥, Т♥]
+            Assert.Null(game.Taking(p[1].Id));                  // [Т♥]
+            Assert.Null(game.Putting(p[2].Id, C(Hearts, Six))); // [Т♥, 6♥] — шістка б'є туза
+            Assert.Equal(2, game.State.Table.Cards.Count);
+
+            game.State.Players[0].Hand.Add(C(Hearts, Eight));
+            Assert.Null(game.Putting(p[0].Id, C(Hearts, Eight))); // третя карта: коло закрито
+
             Assert.Empty(game.State.Table.Cards);
-            Assert.Equal(2, game.State.DiscardCount); // сімка і туз; узята шістка лишилась у третього гравця
-            Assert.Contains(C(Hearts, Six), p[2].Hand);
+            Assert.Equal(3, game.State.DiscardCount);
             Assert.Equal(p[0].Id, CurrentId(game));
         }
 
@@ -668,12 +690,12 @@ namespace CardGame.Tests
             Assert.Null(game.Taking(p[1].Id));
             Assert.Null(game.Putting(p[2].Id, C(Diamonds, Ten)));
 
-            Assert.Equal(1, game.State.Table.RoundPuts);
-            Assert.Equal(3, game.State.Table.RoundSize);
+            Assert.Equal(new[] { C(Diamonds, Ten) }, game.State.Table.Cards);
+            Assert.Equal(p[0].Id, CurrentId(game));
         }
 
         [Fact]
-        public void PlayerWhoWentOutStillCountsInTheRound()
+        public void PlayerWhoWentOutNoLongerCountsInTheRound()
         {
             var (game, p) = Playing(Clubs,
                 new[] { C(Hearts, Six) },
@@ -683,11 +705,9 @@ namespace CardGame.Tests
             Assert.Null(game.Putting(p[0].Id, C(Hearts, Six))); // перший викинув останню карту і вийшов
             Assert.Equal(1, p[0].Place);
 
-            Assert.Null(game.Putting(p[1].Id, C(Hearts, Seven)));
-            Assert.Equal(2, game.State.Table.Cards.Count); // коло ще не закрите: третій теж має покласти карту
-
-            Assert.Null(game.Putting(p[2].Id, C(Hearts, Eight)));
+            Assert.Null(game.Putting(p[1].Id, C(Hearts, Seven))); // у грі двоє, на столі дві карти
             Assert.Empty(game.State.Table.Cards);
+            Assert.Equal(p[1].Id, CurrentId(game));
         }
 
         // ---------- По поганій ----------
@@ -711,7 +731,6 @@ namespace CardGame.Tests
 
             Assert.Contains(C(Diamonds, Ace), p[1].Hand);
             Assert.Equal(new[] { C(Hearts, Nine) }, game.State.Table.Cards);
-            Assert.Equal(1, game.State.Table.RoundPuts);
             Assert.Equal(p[1].Id, CurrentId(game));
             Assert.Equal(GameActionKind.Foul, game.State.LastAction!.Kind);
             Assert.Equal(C(Diamonds, Ace), game.State.LastAction.Card);
@@ -736,7 +755,7 @@ namespace CardGame.Tests
             Assert.DoesNotContain(C(Spades, Seven), p[2].Hand);
 
             Assert.Null(game.Putting(p[1].Id, C(Hearts, King)));
-            Assert.Equal(2, game.State.Table.RoundPuts);
+            Assert.Equal(2, game.State.Table.Cards.Count);
         }
 
         [Fact]
@@ -1034,6 +1053,27 @@ namespace CardGame.Tests
 
             Assert.Equal(GamePhase.Finished, game.State.Phase);
             Assert.Equal(p[0].Id, game.State.LoserId);
+        }
+
+        [Fact]
+        public void StageTwoMovesAreCountedWithoutFouls()
+        {
+            var (game, p) = Playing(Clubs,
+                new[] { C(Hearts, Six), C(Diamonds, Ace), C(Hearts, Eight) },
+                new[] { C(Hearts, Seven), C(Spades, Nine) });
+
+            Assert.Null(game.Putting(p[0].Id, C(Hearts, Six)));
+            Assert.Null(game.Taking(p[1].Id));
+            Assert.Null(game.Putting(p[0].Id, C(Diamonds, Ace)));
+            Assert.Null(game.Putting(p[1].Id, C(Spades, Nine))); // провтик: піка бубну не б'є
+            Assert.Equal(3, game.State.PlayingMoves);
+
+            var view = game.GetViews(new RoomInfo("1234", "Тест", false)).First().View;
+            Assert.Equal(3, view.PlayingMoves);
+
+            game.State.Phase = GamePhase.Finished;
+            Assert.Null(game.StartGame(p[0].Id));
+            Assert.Equal(0, game.State.PlayingMoves);
         }
 
         [Fact]

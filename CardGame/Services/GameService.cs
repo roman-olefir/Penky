@@ -153,9 +153,7 @@ namespace DurakBackend.Services
         // Гравець вийшов посеред кола: чекати на його карту вже не треба
         private void ShrinkRound()
         {
-            if (State.Table.Cards.Count == 0) return;
-            State.Table.RoundSize = Math.Min(State.Table.RoundSize, ActivePlayers.Count);
-            if (RoundIsOver) CloseRound();
+            if (State.Table.Cards.Count > 0 && RoundIsOver) CloseRound();
         }
 
         public Player? Reconnect(string token, string connectionId, out string? previousConnectionId)
@@ -273,6 +271,7 @@ namespace DurakBackend.Services
                 State.Penalty = null;
                 State.Trump = null;
                 State.LoserId = null;
+                State.PlayingMoves = 0;
                 State.LastAction = null;
                 State.Phase = GamePhase.InProgress;
                 State.SubPhase = InProgressPhase.Dealing;
@@ -653,20 +652,14 @@ namespace DurakBackend.Services
                     return null;
                 }
 
-                if (State.Table.Cards.Count == 0) // нове коло
-                {
-                    State.Table.RoundSize = ActivePlayers.Count;
-                    State.Table.RoundPuts = 0;
-                }
-
                 player.Hand.Remove(card);
                 State.Table.Cards.Add(card);
-                State.Table.RoundPuts++;
                 AddLog($"{player.Nick} кладе {card}");
 
                 FinishIfNoCards(player);
                 var closedRound = RoundIsOver ? CloseRound() : null;
 
+                State.PlayingMoves++;
                 Publish(GameActionKind.Put, player.Id, null, card, closedRound);
 
                 if (TryFinishGame()) return null;
@@ -677,10 +670,10 @@ namespace DurakBackend.Services
             }
         }
 
-        // Коло закрите, коли покладено всі його карти. Якщо ж карт у руках ні в кого не лишилось
-        // (буває після передач по поганій), чекати більше нічого.
+        // Коло закрите, коли на столі лежить стільки карт, скільки гравців ще в грі. Узяту зі столу карту
+        // не рахуємо: її там уже немає. Якщо ж карт у руках ні в кого не лишилось, чекати більше нічого.
         private bool RoundIsOver =>
-            State.Table.RoundPuts >= State.Table.RoundSize || !State.Players.Any(CanMove);
+            State.Table.Cards.Count >= ActivePlayers.Count || !State.Players.Any(CanMove);
 
         private List<Card> CloseRound()
         {
@@ -730,6 +723,7 @@ namespace DurakBackend.Services
                 // Стіл спорожнів: наступний почне нове коло, тож це коло скінчилось
                 if (State.Table.Cards.Count == 0) TakeWaitingPenky();
 
+                State.PlayingMoves++;
                 Publish(GameActionKind.Take, player.Id, null, card);
 
                 NextTurn();
@@ -956,12 +950,12 @@ namespace DurakBackend.Services
                 penalty == null ? null : new PenaltyView(penalty.ViolatorId, penalty.PendingGiverIds.ToList()),
                 State.Trump == null ? null : CardView.From(State.Trump),
                 State.Table.Cards.Select(CardView.From).ToList(),
-                State.Table.RoundSize,
-                State.Table.RoundPuts,
+                playing ? ActivePlayers.Count : 0,
                 hand,
                 dealing && myTurn && State.DrawnCard == null && penalty == null,
                 playing && myTurn && State.Table.Cards.Count > 0 && penalty == null,
                 State.LoserId,
+                State.PlayingMoves,
                 lastView,
                 State.Log.TakeLast(LogLinesForClient).ToList());
         }

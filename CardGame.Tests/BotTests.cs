@@ -334,8 +334,6 @@ namespace CardGame.Tests
                 new[] { C(Diamonds, Ace), C(Diamonds, Seven) },
                 new[] { C(Hearts, Nine), C(Hearts, King), C(Clubs, Ace) });
             game.State.Table.Cards.Add(C(Hearts, Eight));
-            game.State.Table.RoundSize = 2;
-            game.State.Table.RoundPuts = 1;
 
             Assert.Null(game.Putting(human.Id, C(Diamonds, Ace))); // бубна чирву не б'є
             Assert.Equal(new[] { bots[0].Id }, game.State.Penalty!.PendingGiverIds);
@@ -384,8 +382,6 @@ namespace CardGame.Tests
 
                 game.State.Table.Cards.Add(C(Hearts, Six));
                 human.Hand.Remove(C(Hearts, Six));
-                game.State.Table.RoundSize = 2;
-                game.State.Table.RoundPuts = 1;
 
                 Assert.True(game.PlayBotMove());
                 return game.State.LastAction! with { Seq = 0 };

@@ -58,7 +58,7 @@ namespace DurakBackend.Services
         private readonly ulong[] _penky;
         private readonly int[] _places;
         private readonly int[] _table = new int[64];
-        private int _head, _tail, _roundPuts, _roundSize, _current, _active, _finished;
+        private int _head, _tail, _current, _active, _finished;
 
         // Один варіант розкладу невідомих карт
         private readonly ulong[] _dealtHands;
@@ -191,8 +191,6 @@ namespace DurakBackend.Services
             _head = 0;
             _tail = _tableStart.Length;
             Array.Copy(_tableStart, _table, _tail);
-            _roundPuts = _view.RoundPuts;
-            _roundSize = _view.RoundSize;
             _current = _me;
             _finished = 0;
             _active = 0;
@@ -240,17 +238,18 @@ namespace DurakBackend.Services
 
         private void Put(int card)
         {
-            if (_head == _tail)
+            if (_head == _tail) _head = _tail = 0;
+            // Карти беруть знизу й кладуть зверху, тож стопка повзе масивом: зсуваємо її на початок
+            if (_tail == _table.Length)
             {
-                _head = _tail = 0;
-                _roundSize = _active;
-                _roundPuts = 0;
+                Array.Copy(_table, _head, _table, 0, _tail - _head);
+                _tail -= _head;
+                _head = 0;
             }
 
             int player = _current;
             _hands[player] &= ~(1UL << card);
             _table[_tail++] = card;
-            _roundPuts++;
 
             if (_hands[player] == 0 && _penky[player] == 0)
             {
@@ -258,7 +257,8 @@ namespace DurakBackend.Services
                 _active--;
             }
 
-            bool closed = _roundPuts >= _roundSize || !AnyoneCanMove();
+            // Коло закрите, коли на столі стільки карт, скільки гравців ще в грі
+            bool closed = _tail - _head >= _active || !AnyoneCanMove();
             if (closed)
             {
                 _head = _tail = 0;
